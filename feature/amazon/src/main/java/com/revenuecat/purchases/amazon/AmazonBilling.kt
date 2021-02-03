@@ -26,14 +26,13 @@ import com.revenuecat.purchases.common.Backend
 import com.revenuecat.purchases.common.BillingAbstract
 import com.revenuecat.purchases.common.LogIntent
 import com.revenuecat.purchases.common.ProductDetailsListCallback
-import com.revenuecat.purchases.common.PurchaseHistoryRecordWrapper
-import com.revenuecat.purchases.common.PurchaseWrapper
 import com.revenuecat.purchases.common.PurchasesErrorCallback
 import com.revenuecat.purchases.common.ReplaceSkuInfo
 import com.revenuecat.purchases.common.caching.DeviceCache
 import com.revenuecat.purchases.common.log
 import com.revenuecat.purchases.common.sha1
 import com.revenuecat.purchases.models.ProductDetails
+import com.revenuecat.purchases.models.PurchaseDetails
 import com.revenuecat.purchases.models.RevenueCatPurchaseState
 import com.revenuecat.purchases.ProductType as RevenueCatProductType
 
@@ -72,7 +71,7 @@ internal class AmazonBilling constructor(
 
     override fun queryAllPurchases(
         appUserID: String,
-        onReceivePurchaseHistory: (List<PurchaseHistoryRecordWrapper>) -> Unit,
+        onReceivePurchaseHistory: (List<PurchaseDetails>) -> Unit,
         onReceivePurchaseHistoryError: PurchasesErrorCallback
     ) {
         purchaseUpdatesHandler.queryPurchases(
@@ -98,22 +97,11 @@ internal class AmazonBilling constructor(
                             val purchaseHistoryRecordWrappers = receipts.mapNotNull { receipt ->
                                 val sku = tokensToSkusMap[receipt.receiptId]
                                 if (sku != null) {
-                                    val type = receipt.productType.toRevenueCatProductType()
-                                    val isAutoRenewing =
-                                        if (type == com.revenuecat.purchases.ProductType.SUBS) !receipt.isCanceled
-                                        else false
-                                    PurchaseHistoryRecordWrapper(
-                                        type = type,
-                                        purchaseToken = receipt.receiptId,
-                                        purchaseTime = receipt.purchaseDate.time,
+                                    receipt.toRevenueCatPurchaseDetails(
                                         sku = sku,
                                         presentedOfferingIdentifier = null,
                                         purchaseState = RevenueCatPurchaseState.UNSPECIFIED_STATE,
-                                        storeUserID = userData.userId,
-                                        isAutoRenewing = isAutoRenewing,
-                                        signature = null,
-                                        orderId = receipt.receiptId,
-                                        originalJson = receipt.toJSON()
+                                        storeUserID = userData.userId
                                     )
                                 } else {
                                     log(LogIntent.AMAZON_ERROR, AmazonStrings.ERROR_FINDING_RECEIPT_SKU)
@@ -147,10 +135,8 @@ internal class AmazonBilling constructor(
 
     override fun consumeAndSave(
         shouldTryToConsume: Boolean,
-        purchase: PurchaseWrapper
+        purchase: PurchaseDetails
     ) {
-        if (purchase !is AmazonPurchaseWrapper) throw IllegalStateException("Trying to consume a non Amazon purchase")
-
         if (purchase.type == RevenueCatProductType.UNKNOWN) return
 
         // PENDING purchases should not be fulfilled
@@ -166,7 +152,7 @@ internal class AmazonBilling constructor(
     override fun findPurchaseInPurchaseHistory(
         skuType: RevenueCatProductType,
         sku: String,
-        completion: (BillingResult, PurchaseHistoryRecordWrapper?) -> Unit
+        completion: (BillingResult, PurchaseDetails?) -> Unit
     ) {
         // TODO
     }
@@ -224,9 +210,8 @@ internal class AmazonBilling constructor(
                                 val purchasesByHashedToken = receipts.mapNotNull { receipt ->
                                     val sku = tokensToSkusMap[receipt.receiptId]
                                     if (sku != null) {
-                                        val amazonPurchaseWrapper = AmazonPurchaseWrapper(
+                                        val amazonPurchaseWrapper = receipt.toRevenueCatPurchaseDetails(
                                             sku = sku,
-                                            containedReceipt = receipt,
                                             presentedOfferingIdentifier = null,
                                             purchaseState = RevenueCatPurchaseState.PURCHASED,
                                             storeUserID = userData.userId
@@ -346,9 +331,8 @@ internal class AmazonBilling constructor(
         presentedOfferingIdentifier: String?
     ) {
         if (receipt.productType != ProductType.SUBSCRIPTION) {
-            val amazonPurchaseWrapper = AmazonPurchaseWrapper(
+            val amazonPurchaseWrapper = receipt.toRevenueCatPurchaseDetails(
                 sku = productDetails.sku,
-                containedReceipt = receipt,
                 presentedOfferingIdentifier = presentedOfferingIdentifier,
                 purchaseState = RevenueCatPurchaseState.PURCHASED,
                 storeUserID = userData.userId
@@ -362,9 +346,8 @@ internal class AmazonBilling constructor(
             userData.userId,
             onSuccess = { response ->
                 val termSku = response["termSku"] as String
-                val amazonPurchaseWrapper = AmazonPurchaseWrapper(
+                val amazonPurchaseWrapper = receipt.toRevenueCatPurchaseDetails(
                     sku = termSku,
-                    containedReceipt = receipt,
                     presentedOfferingIdentifier = presentedOfferingIdentifier,
                     purchaseState = RevenueCatPurchaseState.PURCHASED,
                     storeUserID = userData.userId
@@ -381,6 +364,6 @@ internal class AmazonBilling constructor(
 
     class AmazonQueryPurchasesResult(
         isSuccessful: Boolean,
-        purchasesByHashedToken: Map<String, PurchaseWrapper>
+        purchasesByHashedToken: Map<String, PurchaseDetails>
     ) : BillingAbstract.QueryPurchasesResult(isSuccessful, purchasesByHashedToken)
 }

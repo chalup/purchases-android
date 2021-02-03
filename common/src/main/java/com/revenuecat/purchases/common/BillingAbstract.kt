@@ -5,6 +5,7 @@ import com.android.billingclient.api.BillingResult
 import com.revenuecat.purchases.ProductType
 import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.models.ProductDetails
+import com.revenuecat.purchases.models.PurchaseDetails
 
 typealias ProductDetailsListCallback = (List<ProductDetails>) -> Unit
 
@@ -42,7 +43,7 @@ abstract class BillingAbstract {
 
     abstract fun queryAllPurchases(
         appUserID: String,
-        onReceivePurchaseHistory: (List<PurchaseHistoryRecordWrapper>) -> Unit,
+        onReceivePurchaseHistory: (List<PurchaseDetails>) -> Unit,
         onReceivePurchaseHistoryError: PurchasesErrorCallback
     )
 
@@ -55,13 +56,13 @@ abstract class BillingAbstract {
 
     abstract fun consumeAndSave(
         shouldTryToConsume: Boolean,
-        purchase: PurchaseWrapper
+        purchase: PurchaseDetails
     )
 
     abstract fun findPurchaseInPurchaseHistory(
         skuType: ProductType,
         sku: String,
-        completion: (BillingResult, PurchaseHistoryRecordWrapper?) -> Unit
+        completion: (BillingResult, PurchaseDetails?) -> Unit
     )
 
     abstract fun makePurchaseAsync(
@@ -82,11 +83,11 @@ abstract class BillingAbstract {
 
     open class QueryPurchasesResult(
         val isSuccessful: Boolean,
-        val purchasesByHashedToken: Map<String, PurchaseWrapper>
+        val purchasesByHashedToken: Map<String, PurchaseDetails>
     )
 
     interface PurchasesUpdatedListener {
-        fun onPurchasesUpdated(purchases: List<PurchaseWrapper>)
+        fun onPurchasesUpdated(purchases: List<PurchaseDetails>)
         fun onPurchasesFailedToUpdate(purchasesError: PurchasesError)
     }
 }
